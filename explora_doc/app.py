@@ -1,0 +1,231 @@
+"""ExploraDoc - A lightweight tool for exploratory testing documentation."""
+
+import queue
+import tkinter as tk
+import customtkinter as ctk
+from pathlib import Path
+from typing import Dict
+from tkinter import messagebox, filedialog
+from PIL import Image
+
+from .models import ScreenshotMeta
+from .file_monitor import FileMonitor, get_default_screenshot_folder
+from .exporter import DocumentExporter
+from .ui import MainUI, ScreenshotEntryUI, ImageViewerDialog, ExportSuccessDialog
+
+
+class ExploraDocApp:
+    """Main application controller for ExploraDoc."""
+    
+    def __init__(self, root: ctk.CTk):
+        self.root = root
+        
+        # Application state - initialize before UI
+        self.screenshots: Dict[Path, ScreenshotMeta] = {}
+        self.selected_folder: Path = get_default_screenshot_folder()
+        self.event_queue: queue.Queue = queue.Queue()
+        
+        # Create UI after screenshots is initialized
+        self.ui = MainUI(root, self)
+        
+        # File monitoring
+        self.file_monitor = FileMonitor()
+        
+        # Initialize UI
+        self.ui.update_folder_display(self.selected_folder)
+        self._start_queue_polling()
+    
+    def start_monitoring(self):
+        """Start monitoring the selected folder for new screenshots."""
+        if self.file_monitor.is_monitoring:
+            return
+        
+        if not self.selected_folder.exists():
+            messagebox.showerror(
+                "Folder Missing", 
+                f"Screenshots folder not found: {self.selected_folder}\n"
+                "Create it and try again."
+            )
+            return
+        
+        self.file_monitor.start_monitoring(
+            self.selected_folder, 
+            self._on_new_screenshot
+        )
+        self.ui.set_monitoring_state(True)
+    
+    def stop_monitoring(self):
+        """Stop monitoring for new screenshots."""
+        self.file_monitor.stop_monitoring()
+        self.ui.set_monitoring_state(False)
+    
+    def change_folder(self):
+        """Allow user to select a different screenshot folder."""
+        if self.file_monitor.is_monitoring:
+            return
+        
+        initial_dir = (
+            self.selected_folder 
+            if self.selected_folder.exists() 
+            else get_default_screenshot_folder().parent
+        )
+        
+        chosen = filedialog.askdirectory(
+            title="Select Screenshot Folder", 
+            initialdir=str(initial_dir)
+        )
+        
+        if not chosen:
+            return
+        
+        new_path = Path(chosen)
+        if not new_path.exists():
+            messagebox.showerror(
+                "Invalid Folder", 
+                "Selected folder does not exist."
+            )
+            return
+        
+        self.selected_folder = new_path
+        self.ui.update_folder_display(new_path)
+    
+    def export_to_word(self):
+        """Export all screenshots and annotations to a Word document."""
+        if not self.screenshots:
+            messagebox.showinfo("Nothing to Export", "No screenshots to export.")
+            return
+        
+        # Validate all required fields before export
+        validation_errors = self.ui.validate_all_fields()
+        if validation_errors:
+            error_message = "Please fill in all required fields:\n\n" + "\n".join(validation_errors)
+            messagebox.showerror("Validation Error", error_message)
+            return
+
+        try:
+            test_title = self.ui.test_title_var.get().strip() or "Exploratory Test Session"
+            file_path = DocumentExporter.export_to_word(self.screenshots, test_title)
+            ExportSuccessDialog.show_success(self.root, file_path)
+        except Exception as e:
+            messagebox.showerror("Export Failed", str(e))
+    
+    def clear_session(self):
+        """Clear all screenshots and annotations from the session."""
+        if not messagebox.askyesno(
+            "Confirm", 
+            "Clear all screenshots and annotations?"
+        ):
+            return
+        
+        self.ui.clear_screenshot_feed()
+        self.screenshots.clear()
+        # Update button states when screenshots are cleared
+        self.ui._update_button_states()
+    
+    def shutdown(self):
+        """Clean shutdown of the application."""
+        self.file_monitor.stop_monitoring()
+        self.root.destroy()
+    
+    def _on_new_screenshot(self, file_path: Path):
+        """Handle new screenshot detection."""
+        self.event_queue.put(("new_image", file_path))
+    
+    def _start_queue_polling(self):
+        """Start polling the event queue for new screenshots."""
+        self._poll_queue()
+    
+    def _poll_queue(self):
+        """Poll the event queue for new screenshot notifications."""
+        try:
+            while True:
+                event_type, file_path = self.event_queue.get_nowait()
+                if event_type == "new_image":
+                    self._add_screenshot(file_path)
+        except queue.Empty:
+            pass
+        finally:
+            self.root.after(400, self._poll_queue)
+    
+    def _add_screenshot(self, file_path: Path):
+        """Add a new screenshot to the UI."""
+        if file_path in self.screenshots:
+            return
+        
+        try:
+            image = Image.open(file_path)
+        except Exception as e:
+            return
+        
+        meta = ScreenshotMeta(path=file_path)
+        ScreenshotEntryUI(
+            self.ui.feed_frame, 
+            meta, 
+            image, 
+            self._show_full_image,
+            self  # Pass controller reference
+        )
+        self.screenshots[file_path] = meta
+        
+        # Update button states when screenshot is added
+        self.ui._update_button_states()
+    
+    def _show_full_image(self, file_path: Path):
+        """Show the full-size image in a dialog."""
+        ImageViewerDialog.show_image(self.root, file_path)
+    
+    def reorder_entry(self, meta: ScreenshotMeta, move_down: bool):
+        """Reorder a screenshot entry up or down."""
+        # Get current order of screenshots
+        screenshot_list = list(self.screenshots.items())
+        current_index = next(i for i, (path, m) in enumerate(screenshot_list) if m == meta)
+        
+        if move_down and current_index < len(screenshot_list) - 1:
+            # Move down (swap with next item)
+            new_index = current_index + 1
+        elif not move_down and current_index > 0:
+            # Move up (swap with previous item)
+            new_index = current_index - 1
+        else:
+            return  # No movement needed
+        
+        # Swap the items
+        screenshot_list[current_index], screenshot_list[new_index] = \
+            screenshot_list[new_index], screenshot_list[current_index]
+        
+        # Update the dictionary with new order
+        self.screenshots = dict(screenshot_list)
+        
+        # Refresh the UI
+        self._refresh_screenshot_order()
+    
+    def _refresh_screenshot_order(self):
+        """Refresh the UI to show screenshots in the new order."""
+        # Clear the current UI
+        self.ui.clear_screenshot_feed()
+        
+        # Re-add all screenshots in the new order
+        for path, meta in self.screenshots.items():
+            try:
+                image = Image.open(path)
+                ScreenshotEntryUI(
+                    self.ui.feed_frame, 
+                    meta, 
+                    image, 
+                    self._show_full_image,
+                    self
+                )
+            except Exception:
+                continue  # Skip invalid images
+
+
+def main():
+    """Main entry point for the application."""
+    root = ctk.CTk()
+    app = ExploraDocApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.shutdown)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,8 @@
+- allow clearing and exporting not only when the test is running, it should be allowed always with the exception that there is no entries then we disable the buttons
+- allow reordering of screenshots(the whole entry should be draggable)
+- remove the steps taken box entirely.
+- expected vs actual remove too, we should have a single "What this image shows" field. and a dropdown for selecting either dev branch or main branch which will add a "Branch" label in the final export.
+- set a min width of the whole window and a max of the window.
+- allow setting of the title of the exploratory test which will be something like (testing for AS-<branch>)
+- remove any timestamp from the final export. and no other metadata like screenshot paths.
+- allow adding figure captions in the ui to the screenshots which are captions for the images in the export.
