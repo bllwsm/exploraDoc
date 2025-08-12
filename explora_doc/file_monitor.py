@@ -11,7 +11,45 @@ SUPPORTED_EXTS = {".png", ".jpg", ".jpeg", ".bmp"}
 
 def get_default_screenshot_folder() -> Path:
     """Get the default Windows Screenshots folder for current user."""
-    user = os.getlogin()
+    user_profile = os.environ.get("USERPROFILE")
+    
+    # List of potential screenshot locations to check (in order of preference)
+    potential_paths = []
+    
+    if user_profile:
+        user_path = Path(user_profile)
+        
+        # Check for OneDrive redirected Pictures folder first
+        # Common OneDrive patterns
+        onedrive_patterns = [
+            user_path / "OneDrive - *" / "Pictures" / "Screenshots",
+            user_path / "OneDrive" / "Pictures" / "Screenshots",
+        ]
+        
+        # Find actual OneDrive folders using glob
+        for pattern in onedrive_patterns:
+            for onedrive_path in user_path.glob(str(pattern.relative_to(user_path))):
+                if onedrive_path.exists():
+                    potential_paths.append(onedrive_path)
+        
+        # Add standard local Pictures folder
+        potential_paths.append(user_path / "Pictures" / "Screenshots")
+    else:
+        # Fallback if USERPROFILE is not available
+        user = os.getlogin()
+        potential_paths.append(Path(f"C:/Users/{user}/Pictures/Screenshots"))
+    
+    for path in potential_paths:
+        if path.exists() and any(path.iterdir()):  # Check if folder exists and has files
+            return path
+        elif path.exists():  # Empty but exists
+            return path
+
+    # If no existing path found, return the first potential path or a default location
+    if potential_paths:
+        return potential_paths[0]
+    # Fallback to user's Pictures/Screenshots folder
+    user = os.environ.get("USERPROFILE") or os.getlogin()
     return Path(f"C:/Users/{user}/Pictures/Screenshots")
 
 
