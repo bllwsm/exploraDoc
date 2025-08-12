@@ -10,6 +10,7 @@ import subprocess
 import webbrowser
 
 from .models import ScreenshotMeta
+from .assets import get_icon_path, get_image_path
 
 
 THUMBNAIL_SIZE = (180, 120)
@@ -34,6 +35,26 @@ class MainUI:
         self._setup_window()
         self._build_interface()
     
+    def _load_icon(self, icon_name: str, size: tuple = (20, 20)) -> ctk.CTkImage:
+        """
+        Load an icon from the assets directory.
+        
+        Args:
+            icon_name: Name of the icon file
+            size: Size tuple for the icon (width, height)
+            
+        Returns:
+            CTkImage object or None if icon not found
+        """
+        try:
+            icon_path = get_icon_path(icon_name)
+            if icon_path.exists():
+                img = Image.open(icon_path)
+                return ctk.CTkImage(light_image=img, dark_image=img, size=size)
+        except Exception as e:
+            print(f"Warning: Could not load icon '{icon_name}': {e}")
+        return None
+    
     def _setup_window(self):
         """Configure the main window."""
         # Set CustomTkinter appearance
@@ -44,6 +65,20 @@ class MainUI:
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)  # Set minimum window size
         self.root.maxsize(1400, 1000)  # Set maximum window size
+        
+        # Try to set application icon
+        try:
+            icon_path = get_icon_path("app_icon.png")
+            if icon_path.exists():
+                img = Image.open(icon_path)
+                icon = ctk.CTkImage(light_image=img, dark_image=img, size=(32, 32))
+                # Note: CTk doesn't directly support window icons, but we can try tkinter method
+                try:
+                    self.root.iconphoto(True, img)
+                except:
+                    pass  # Silently fail if icon setting doesn't work
+        except Exception:
+            pass  # Silently fail if no icon available
     
     def _build_interface(self):
         """Build the main user interface."""
@@ -90,39 +125,55 @@ class MainUI:
         
         self.change_btn = ctk.CTkButton(
             toolbar, 
-            text="📁 Change Folder", 
+            text="Change Folder",
+            image=self._load_icon("folder.png", (20, 20)),
             command=self.controller.change_folder,
             width=140
         )
+        # Fallback to emoji if no icon
+        if self.change_btn.cget("image") is None:
+            self.change_btn.configure(text="📁 Change Folder")
         self.change_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Control buttons
         self.start_btn = ctk.CTkButton(
             toolbar, 
-            text="🎯 Start Test", 
+            text="Start Test",
+            image=self._load_icon("start.png", (20, 20)),
             command=self.controller.start_monitoring,
             fg_color="#2b9348",
             hover_color="#207a3c",
             width=120
         )
+        # Fallback to emoji if no icon
+        if self.start_btn.cget("image") is None:
+            self.start_btn.configure(text="🎯 Start Test")
         self.start_btn.pack(side=tk.LEFT, padx=5)
         
         self.export_btn = ctk.CTkButton(
             toolbar, 
-            text="📄 Export", 
+            text="Export",
+            image=self._load_icon("export.png", (20, 20)),
             command=self.controller.export_to_word, 
             width=100
         )
+        # Fallback to emoji if no icon
+        if self.export_btn.cget("image") is None:
+            self.export_btn.configure(text="📄 Export")
         self.export_btn.pack(side=tk.LEFT, padx=5)
         
         self.clear_btn = ctk.CTkButton(
             toolbar, 
-            text="🗑️ Clear", 
+            text="Clear",
+            image=self._load_icon("clear.png", (20, 20)),
             command=self.controller.clear_session, 
             fg_color="#dc3545",
             hover_color="#c82333",
             width=100
         )
+        # Fallback to emoji if no icon
+        if self.clear_btn.cget("image") is None:
+            self.clear_btn.configure(text="🗑️ Clear")
         self.clear_btn.pack(side=tk.LEFT, padx=5)
         
         # Initialize button states
@@ -150,8 +201,10 @@ class MainUI:
         """Update UI state based on monitoring status."""
         if monitoring:
             # Change start button to stop button (red color)
+            stop_icon = self._load_icon("stop.png", (20, 20))
             self.start_btn.configure(
-                text="⏹️ Stop Test",
+                text="Stop Test" if stop_icon else "⏹️ Stop Test",
+                image=stop_icon,
                 command=self.controller.stop_monitoring,
                 fg_color="#dc3545",
                 hover_color="#c82333"
@@ -159,8 +212,10 @@ class MainUI:
             self.change_btn.configure(state=tk.DISABLED)
         else:
             # Change back to start button (green color)
+            start_icon = self._load_icon("start.png", (20, 20))
             self.start_btn.configure(
-                text="🎯 Start Test",
+                text="Start Test" if start_icon else "🎯 Start Test",
+                image=start_icon,
                 command=self.controller.start_monitoring,
                 fg_color="#2b9348",
                 hover_color="#207a3c"
@@ -475,6 +530,18 @@ class ExportSuccessDialog:
     """Dialog for showing export success with file navigation options."""
     
     @staticmethod
+    def _load_icon_for_dialog(icon_name: str, size: tuple = (20, 20)) -> ctk.CTkImage:
+        """Load an icon for use in dialog buttons."""
+        try:
+            icon_path = get_icon_path(icon_name)
+            if icon_path.exists():
+                img = Image.open(icon_path)
+                return ctk.CTkImage(light_image=img, dark_image=img, size=size)
+        except Exception:
+            pass
+        return None
+    
+    @staticmethod
     def show_success(parent: ctk.CTk, file_path: Path):
         """Display export success dialog with navigation options."""
         dialog = ctk.CTkToplevel(parent)
@@ -508,18 +575,22 @@ class ExportSuccessDialog:
         button_frame.pack(fill=tk.X, padx=20, pady=10)
         
         # Open folder button
+        folder_icon = ExportSuccessDialog._load_icon_for_dialog("folder.png", (20, 20))
         ctk.CTkButton(
             button_frame,
-            text="📁 Open Folder",
+            text="Open Folder" if folder_icon else "📁 Open Folder",
+            image=folder_icon,
             command=lambda: ExportSuccessDialog._open_folder(file_path),
             width=120,
             height=35
         ).pack(side=tk.LEFT, padx=(0, 10))
         
         # Open document button
+        export_icon = ExportSuccessDialog._load_icon_for_dialog("export.png", (20, 20))
         ctk.CTkButton(
             button_frame,
-            text="📄 Open Document",
+            text="Open Document" if export_icon else "📄 Open Document",
+            image=export_icon,
             command=lambda: ExportSuccessDialog._open_document(file_path),
             width=120,
             height=35
