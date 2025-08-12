@@ -58,7 +58,7 @@ class MainUI:
         
         ctk.CTkLabel(
             title_frame, 
-            text="Test Title: *",
+            text="Document Title: *",
             font=ctk.CTkFont(size=12, weight="bold")
         ).pack(side=tk.LEFT, padx=(10, 5), pady=10)
         
