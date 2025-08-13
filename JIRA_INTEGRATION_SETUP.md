@@ -27,34 +27,38 @@ This guide walks you through implementing Jira integration in your ExploraDoc ap
 
 ## Authentication Setup
 
-### Understanding Atlassian Authentication Options
+### API Token Authentication (Our Approach)
 
-There are several ways to authenticate with Jira:
+For this ExploraDoc integration, we'll use **API Token authentication** because it's:
+- **Simple to implement** - No complex OAuth flows
+- **Secure** - Token-based authentication with HTTPS
+- **Perfect for desktop apps** - Single-user scenarios
+- **Quick to set up** - Get started in minutes
 
-#### Option 1: API Token (Recommended for Cloud)
-- **Best for**: Simple integration, single user scenarios
-- **Pros**: Easy to implement, secure
-- **Cons**: User-specific, requires manual token generation
+### Steps to Get Your API Token
 
-#### Option 2: OAuth 2.0 (3-legged)
-- **Best for**: Multi-user applications, marketplace apps
-- **Pros**: User consent flow, secure token management
-- **Cons**: More complex implementation
+1. **Go to Atlassian Account Settings**
+   - Visit: [https://id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+   - Sign in with your Atlassian account
 
-#### Option 3: Connect App JWT
-- **Best for**: Atlassian Connect apps running on your infrastructure
-- **Pros**: Server-to-server communication
-- **Cons**: Complex JWT implementation, requires app framework
+2. **Create New API Token**
+   - Click "Create API token"
+   - Label it descriptively (e.g., "ExploraDoc Integration")
+   - Copy the generated token immediately (you won't see it again!)
+   - Store it securely in your password manager
 
-### Recommended Approach: Start with API Token
+3. **What You'll Need for Configuration**
+   - **Jira URL**: Your Atlassian domain (e.g., `https://yourcompany.atlassian.net`)
+   - **Email**: The email address for your Atlassian account
+   - **API Token**: The token you just created
 
-For your initial implementation, we recommend starting with API tokens as they're simpler to implement and test.
+### Alternative Authentication Methods (Future Consideration)
 
-#### Steps to Get API Token:
-1. Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens)
-2. Click "Create API token"
-3. Label it (e.g., "ExploraDoc Integration")
-4. Copy the generated token (save it securely!)
+While we're using API tokens for this implementation, other methods exist:
+- **OAuth 2.0**: For multi-user applications requiring user consent flows
+- **Connect App JWT**: For server-to-server communication in Atlassian Connect apps
+
+These can be implemented later if your needs change, but API tokens are perfect for getting started.
 
 ## Python Dependencies
 
@@ -63,10 +67,8 @@ For your initial implementation, we recommend starting with API tokens as they'r
 Add the following dependencies to your `requirements.txt` file:
 
 - `atlassian-python-api>=3.41.0` - Main library for Jira API integration
-- `requests>=2.31.0` - HTTP requests library  
-- `requests-oauthlib>=1.3.1` - OAuth authentication support
-- `python-dotenv>=1.0.0` - Environment variable management
-- `webbrowser>=0.1.0` - Browser integration for OAuth flows
+- `requests>=2.31.0` - HTTP requests library (dependency of atlassian-python-api)
+- `python-dotenv>=1.0.0` - Environment variable management for secure configuration
 
 ### Installation Steps
 
@@ -90,9 +92,7 @@ Add the following dependencies to your `requirements.txt` file:
      - Base URL (Jira instance URL)
      - Email address for authentication
      - API token for authentication
-     - Client ID for OAuth (future use)
-     - Client Secret for OAuth (future use)
-   - Add validation methods to check if configuration is complete
+   - Add validation method to check if API token configuration is complete
    - Create global configuration instance
 
 3. **Environment File Creation**
@@ -101,8 +101,6 @@ Add the following dependencies to your `requirements.txt` file:
      - `JIRA_BASE_URL` - Your Atlassian domain URL
      - `JIRA_EMAIL` - Your email address
      - `JIRA_API_TOKEN` - Your API token
-     - `JIRA_CLIENT_ID` - OAuth client ID (for future use)
-     - `JIRA_CLIENT_SECRET` - OAuth client secret (for future use)
      - `JIRA_DEFAULT_PROJECT` - Optional default project key
 
 4. **Security Configuration**
@@ -175,7 +173,7 @@ Add the following dependencies to your `requirements.txt` file:
 
 2. **JiraClient Class Structure**
    - Initialize Jira client instance in constructor
-   - Handle different authentication methods (API token, OAuth)
+   - Handle API token authentication
    - Implement error handling and logging throughout
 
 3. **Core Functionality Methods**
@@ -189,7 +187,7 @@ Add the following dependencies to your `requirements.txt` file:
    - Primary method: API token authentication for Jira Cloud
    - Set up Jira client with URL, email, and API token
    - Enable cloud mode for Jira Cloud instances
-   - Add placeholder for future OAuth implementation
+   - Handle authentication errors gracefully
 
 5. **Error Handling and Logging**
    - Log all major operations and errors
@@ -329,54 +327,87 @@ Add the following dependencies to your `requirements.txt` file:
 
 ### Phase 3: Advanced Features (Week 5-6)
 
-**Goal**: Add OAuth support and advanced integration features
+**Goal**: Add enhanced integration features and scalability
 
 **Tasks**:
-- [ ] Implement OAuth 2.0 authentication flow
 - [ ] Add support for multiple Jira instances
 - [ ] Create batch export functionality
 - [ ] Add custom field mapping for issues
 - [ ] Implement template-based document generation
 - [ ] Add integration with Jira workflows
 - [ ] Create user preferences and settings
+- [ ] Consider OAuth 2.0 for enterprise scenarios
 
 **Deliverables**:
-- OAuth 2.0 authentication option
 - Multi-instance Jira support
 - Batch export capabilities
 - Custom field integration
 - User preferences system
+- Enterprise authentication options
 
 **Success Criteria**:
-- Users can authenticate via OAuth for better security
 - Support for multiple Jira instances in same application
 - Ability to export multiple documents at once
 - Custom fields can be mapped from document data
+- OAuth available for enterprise deployments
 
-### Phase 4: Polish and Distribution (Week 7-8)
+### Phase 4: Settings UI and Multi-User Support (Week 7-8)
 
-**Goal**: Prepare for production deployment and distribution
+**Goal**: Add user-friendly settings interface and prepare for production
 
 **Tasks**:
-- [ ] Comprehensive testing and bug fixes
-- [ ] Performance optimization for large exports
-- [ ] Create deployment packages and installers
-- [ ] Write user documentation and help system
-- [ ] Implement auto-update mechanism
-- [ ] Add analytics and usage tracking (optional)
-- [ ] Create video tutorials and demos
+- [ ] **Settings Tab Implementation**
+  - Add Settings tab to main application window
+  - Create settings page with Jira configuration fields
+  - Implement secure credential storage (encrypted JSON config)
+  - Add "Test Connection" functionality within settings
+  - Include input validation and user feedback
+- [ ] **Multi-User Configuration Support**
+  - Support per-user settings storage
+  - Remove dependency on manual `.env` file editing
+  - Add settings import/export functionality
+  - Implement settings reset to defaults option
+- [ ] **Production Readiness**
+  - Comprehensive testing and bug fixes
+  - Performance optimization for large exports
+  - Create deployment packages and installers
+  - Write user documentation and help system
+  - Implement auto-update mechanism
+- [ ] **User Experience Polish**
+  - Add first-run setup wizard that guides to Settings tab
+  - Create video tutorials and demos
+  - Add analytics and usage tracking (optional)
+  - Implement user preferences and customization options
+
+**Settings Tab Components**:
+- **Jira Configuration Section**:
+  - Jira URL input field with validation
+  - Email address input field
+  - API token input field (masked for security)
+  - Test Connection button with status indicators
+- **User Interface**:
+  - Save Settings button
+  - Reset to Defaults button
+  - Settings status display (configured/not configured)
+  - Link to API token generation guide
+- **Advanced Options**:
+  - Default project selection
+  - Export preferences
+  - Debug mode toggle
 
 **Deliverables**:
-- Production-ready application
-- Deployment packages for different platforms
+- Settings tab integrated into main application
+- User-friendly Jira configuration interface
+- Secure multi-user credential storage
+- Production-ready application with installers
 - Comprehensive user documentation
-- Tutorial materials
 
 **Success Criteria**:
+- Users can configure Jira settings without editing files
+- Multiple users can use the same application with different credentials
+- Settings are stored securely and persist between sessions
 - Application runs reliably in production environments
-- Users can install and configure without technical assistance
-- Performance is acceptable for typical usage patterns
-- Documentation covers all features and troubleshooting
+- First-time users can complete setup through guided interface
 
 ## Deployment Considerations
 

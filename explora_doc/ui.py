@@ -107,6 +107,7 @@ class MainUI:
         
         # Bind validation to the entry
         self.test_title_var.trace_add("write", self._validate_title_field)
+        self.test_title_var.trace_add("write", self._on_title_change)
     
     def _create_toolbar(self):
         """Create the top toolbar with controls."""
@@ -244,6 +245,12 @@ class MainUI:
         else:
             self.title_entry.configure(border_color=("red", "red"))
     
+    def _on_title_change(self, *args):
+        """Handle title field change to trigger auto-save."""
+        # Trigger auto-save with a small delay to avoid too frequent saves
+        if hasattr(self.controller, '_save_session_data'):
+            self.controller.root.after(2000, self.controller._save_session_data)
+    
     def validate_all_fields(self):
         """Validate all required fields in the form."""
         errors = []
@@ -300,6 +307,7 @@ class ScreenshotEntryUI:
         
         self._create_thumbnail_section(row, image)
         self._create_annotation_fields(row)
+        self._create_action_buttons(row)
         self._setup_drag_and_drop(row)
     
     def _create_thumbnail_section(self, row: ctk.CTkFrame, image: Image.Image):
@@ -340,6 +348,7 @@ class ScreenshotEntryUI:
         
         # Bind validation to the caption entry
         self.meta.caption.trace_add("write", self._validate_caption_field)
+        self.meta.caption.trace_add("write", self._on_field_change)
     
     def _create_annotation_fields(self, row: ctk.CTkFrame):
         """Create the annotation input fields."""
@@ -364,6 +373,7 @@ class ScreenshotEntryUI:
         
         # Bind validation to the what entry
         self.meta.what.trace_add("write", self._validate_what_field)
+        self.meta.what.trace_add("write", self._on_field_change)
         
         # Branch selection
         ctk.CTkLabel(
@@ -377,9 +387,47 @@ class ScreenshotEntryUI:
             variable=self.meta.branch,
             values=["dev", "master"],
             state="readonly",
-            width=120
+            width=120,
+            command=self._on_branch_change
         )
         branch_dropdown.pack(anchor="w", padx=10, pady=(0, 10))
+    
+    def _create_action_buttons(self, row: ctk.CTkFrame):
+        """Create action buttons (delete, etc.) on the right side."""
+        # Right side container for action buttons
+        actions_frame = ctk.CTkFrame(row)
+        actions_frame.pack(side=tk.RIGHT, padx=(5, 10), pady=10)
+        
+        # Delete button with trash icon
+        delete_btn = ctk.CTkButton(
+            actions_frame,
+            text="🗑️",
+            width=24,
+            height=24,
+            command=self._on_delete_click,
+            fg_color="#dc3545",  # Bootstrap danger red
+            hover_color="#c82333",  # Darker red on hover
+            font=ctk.CTkFont(size=12),
+            corner_radius=4
+        )
+        delete_btn.pack(pady=1)
+        
+        # Tooltip for delete button (simple hover effect)
+        delete_btn.bind("<Enter>", lambda e: self._show_tooltip(e, "Delete entry"))
+        delete_btn.bind("<Leave>", self._hide_tooltip)
+    
+    def _on_delete_click(self):
+        """Handle delete button click."""
+        self.controller.delete_screenshot(self.meta)
+    
+    def _show_tooltip(self, event, text):
+        """Show a simple tooltip."""
+        # For now, just change the cursor to indicate action
+        event.widget.configure(cursor="hand2")
+    
+    def _hide_tooltip(self, event):
+        """Hide tooltip."""
+        event.widget.configure(cursor="")
     
     def _setup_drag_and_drop(self, row: ctk.CTkFrame):
         """Setup drag and drop functionality for reordering."""
@@ -483,6 +531,16 @@ class ScreenshotEntryUI:
             self.what_entry.configure(border_color=("gray", "gray"))
         else:
             self.what_entry.configure(border_color=("red", "red"))
+    
+    def _on_field_change(self, *args):
+        """Handle field change to trigger auto-save."""
+        # Trigger auto-save with a small delay to avoid too frequent saves
+        if hasattr(self.controller, '_save_session_data'):
+            self.controller.root.after(2000, self.controller._save_session_data)
+    
+    def _on_branch_change(self, *args):
+        """Handle branch selection change."""
+        self._on_field_change()
 
 
 class ImageViewerDialog:

@@ -12,6 +12,7 @@ from .models import ScreenshotMeta
 from .file_monitor import FileMonitor, get_default_screenshot_folder
 from .exporter import DocumentExporter
 from .ui import MainUI, ScreenshotEntryUI, ImageViewerDialog, ExportSuccessDialog
+from .data_manager import DataManager
 
 
 class ExploraDocApp:
@@ -19,6 +20,9 @@ class ExploraDocApp:
     
     def __init__(self, root: ctk.CTk):
         self.root = root
+        
+        # Initialize data manager
+        self.data_manager = DataManager()
         
         # Application state - initialize before UI
         self.screenshots: Dict[Path, ScreenshotMeta] = {}
@@ -31,9 +35,15 @@ class ExploraDocApp:
         # File monitoring
         self.file_monitor = FileMonitor()
         
+        # Load saved session data
+        self._load_session_data()
+        
         # Initialize UI
         self.ui.update_folder_display(self.selected_folder)
         self._start_queue_polling()
+        
+        # Auto-save session data periodically
+        self._schedule_auto_save()
     
     def start_monitoring(self):
         """Start monitoring the selected folder for new screenshots."""
@@ -119,11 +129,37 @@ class ExploraDocApp:
         
         self.ui.clear_screenshot_feed()
         self.screenshots.clear()
+        # Clear the saved session file
+        self.data_manager.clear_session_file()
         # Update button states when screenshots are cleared
+        self.ui._update_button_states()
+    
+    def delete_screenshot(self, meta: ScreenshotMeta):
+        """Delete a specific screenshot entry."""
+        if not messagebox.askyesno(
+            "Confirm Delete", 
+            "Delete this screenshot entry?"
+        ):
+            return
+        
+        # Remove from screenshots dictionary
+        if meta.path in self.screenshots:
+            del self.screenshots[meta.path]
+        
+        # Remove the UI element
+        if meta.entry_frame:
+            meta.entry_frame.destroy()
+        
+        # Save the updated data
+        self._save_session_data()
+        
+        # Update button states
         self.ui._update_button_states()
     
     def shutdown(self):
         """Clean shutdown of the application."""
+        # Save session data before closing
+        self._save_session_data()
         self.file_monitor.stop_monitoring()
         self.root.destroy()
     
@@ -166,6 +202,9 @@ class ExploraDocApp:
             self  # Pass controller reference
         )
         self.screenshots[file_path] = meta
+        
+        # Save session data when new screenshot is added
+        self._save_session_data()
         
         # Update button states when screenshot is added
         self.ui._update_button_states()
@@ -217,6 +256,52 @@ class ExploraDocApp:
                 )
             except Exception:
                 continue  # Skip invalid images
+    
+    def _load_session_data(self):
+        """Load saved session data if it exists."""
+        try:
+            screenshots, test_title = self.data_manager.load_session()
+            
+            # Set the test title
+            if test_title:
+                self.ui.test_title_var.set(test_title)
+            
+            # Load screenshots
+            for path, meta in screenshots.items():
+                if path.exists():  # Only load if file still exists
+                    try:
+                        image = Image.open(path)
+                        ScreenshotEntryUI(
+                            self.ui.feed_frame, 
+                            meta, 
+                            image, 
+                            self._show_full_image,
+                            self
+                        )
+                        self.screenshots[path] = meta
+                    except Exception as e:
+                        print(f"Error loading screenshot {path}: {e}")
+                        continue
+            
+            # Update button states
+            self.ui._update_button_states()
+            
+        except Exception as e:
+            print(f"Error loading session data: {e}")
+    
+    def _save_session_data(self):
+        """Save current session data."""
+        try:
+            test_title = self.ui.test_title_var.get()
+            self.data_manager.save_session(self.screenshots, test_title)
+        except Exception as e:
+            print(f"Error saving session data: {e}")
+    
+    def _schedule_auto_save(self):
+        """Schedule automatic saving of session data."""
+        self._save_session_data()
+        # Schedule next auto-save in 30 seconds
+        self.root.after(30000, self._schedule_auto_save)
 
 
 def main():
