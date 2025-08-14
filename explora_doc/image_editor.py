@@ -1180,9 +1180,13 @@ class ImageAnnotationEditor:
                 # Convert to RGB for JPEG
                 result = result.convert('RGB')
 
-            # Save the final annotated image back to the original path
+            # Save the final annotated image
             try:
+                # First try to save to the same directory as the original
                 annotated_path = self.image_path.with_stem(self.image_path.stem + "_annotated")
+                
+                # Ensure the target directory exists
+                annotated_path.parent.mkdir(parents=True, exist_ok=True)
 
                 try:
                     result.save(str(annotated_path))
@@ -1191,9 +1195,33 @@ class ImageAnnotationEditor:
                     # Update path so the callback gets the right file
                     self.image_path = annotated_path
                     return True
-                except Exception as e:
+                except (PermissionError, OSError, FileNotFoundError) as e:
                     print(f"Failed to save image to {annotated_path}: {e}")
-                    return False
+                    
+                    # Fallback: Save to user's Pictures folder
+                    pictures_dir = Path.home() / "Pictures" / "ExploraDoc_Annotations"
+                    pictures_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    fallback_path = pictures_dir / annotated_path.name
+                    
+                    # If file already exists, add a timestamp
+                    if fallback_path.exists():
+                        import datetime
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        stem = annotated_path.stem
+                        suffix = annotated_path.suffix
+                        fallback_path = pictures_dir / f"{stem}_{timestamp}{suffix}"
+                    
+                    try:
+                        result.save(str(fallback_path))
+                        print(f"Image saved to fallback location: {fallback_path}")
+                        
+                        # Update path so the callback gets the right file
+                        self.image_path = fallback_path
+                        return True
+                    except Exception as fallback_error:
+                        print(f"Failed to save to fallback location {fallback_path}: {fallback_error}")
+                        return False
                 
             except Exception as e:
                 print(f"Failed to save image to original path: {e}")
