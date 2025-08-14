@@ -220,17 +220,32 @@ class ExploraDocApp:
             ImageAnnotationEditor.open(
                 self.root, 
                 file_path, 
-                on_save_callback=self._on_image_saved
+                on_save_callback=lambda new_path: self._on_image_saved(file_path, new_path)
             )
         except Exception as e:
             messagebox.showerror("Editor Error", f"Failed to open image editor: {e}")
     
-    def _on_image_saved(self, file_path: Path):
+    def _on_image_saved(self, original_path: Path, new_path: Path):
         """Handle image save callback from the annotation editor."""
-        # Find the screenshot entry and refresh its thumbnail
-        if file_path in self.screenshots:
-            # Force refresh of the screenshot display
-            self._refresh_screenshot_thumbnails()
+        # Update the screenshot entry to point to the new annotated image
+        if original_path in self.screenshots:
+            # Get the metadata for the original image
+            meta = self.screenshots[original_path]
+            
+            # Remove the old entry
+            del self.screenshots[original_path]
+            
+            # Update the metadata to point to the new path
+            meta.path = new_path
+            
+            # Add it back with the new path
+            self.screenshots[new_path] = meta
+            
+            # Refresh the entire UI to show the updated image
+            self._refresh_screenshot_order()
+            
+            # Save the updated session data
+            self._save_session_data()
     
     def _refresh_screenshot_thumbnails(self):
         """Refresh all screenshot thumbnails to reflect any changes."""
