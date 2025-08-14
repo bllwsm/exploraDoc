@@ -13,6 +13,7 @@ from .file_monitor import FileMonitor, get_default_screenshot_folder
 from .exporter import DocumentExporter
 from .ui import MainUI, ScreenshotEntryUI, ImageViewerDialog, ExportSuccessDialog
 from .data_manager import DataManager
+from .image_editor import ImageAnnotationEditor
 
 
 class ExploraDocApp:
@@ -210,8 +211,56 @@ class ExploraDocApp:
         self.ui._update_button_states()
     
     def _show_full_image(self, file_path: Path):
-        """Show the full-size image in a dialog."""
-        ImageViewerDialog.show_image(self.root, file_path)
+        """Open the image annotation editor."""
+        self.open_image_editor(file_path)
+    
+    def open_image_editor(self, file_path: Path):
+        """Open the image annotation editor for the given image."""
+        try:
+            ImageAnnotationEditor.open(
+                self.root, 
+                file_path, 
+                on_save_callback=self._on_image_saved
+            )
+        except Exception as e:
+            messagebox.showerror("Editor Error", f"Failed to open image editor: {e}")
+    
+    def _on_image_saved(self, file_path: Path):
+        """Handle image save callback from the annotation editor."""
+        # Find the screenshot entry and refresh its thumbnail
+        if file_path in self.screenshots:
+            # Force refresh of the screenshot display
+            self._refresh_screenshot_thumbnails()
+    
+    def _refresh_screenshot_thumbnails(self):
+        """Refresh all screenshot thumbnails to reflect any changes."""
+        # This is a simple approach - clear and reload all screenshots
+        # In a more sophisticated implementation, we could refresh individual thumbnails
+        current_screenshots = dict(self.screenshots)  # Copy current state
+        
+        # Clear UI
+        self.ui.clear_screenshot_feed()
+        self.screenshots.clear()
+        
+        # Reload all screenshots
+        for path, meta in current_screenshots.items():
+            if path.exists():  # Only reload if file still exists
+                try:
+                    image = Image.open(path)
+                    ScreenshotEntryUI(
+                        self.ui.feed_frame, 
+                        meta, 
+                        image, 
+                        self._show_full_image,
+                        self
+                    )
+                    self.screenshots[path] = meta
+                except Exception as e:
+                    print(f"Error refreshing screenshot {path}: {e}")
+                    continue
+        
+        # Update button states
+        self.ui._update_button_states()
     
     def reorder_entry(self, meta: ScreenshotMeta, move_down: bool):
         """Reorder a screenshot entry up or down."""
