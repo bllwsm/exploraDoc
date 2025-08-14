@@ -2,11 +2,15 @@
 
 import copy
 import math
+import os
+import shutil
+import tempfile
 import tkinter as tk
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
+from unittest import result
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageFont
 
@@ -1055,12 +1059,32 @@ class ImageAnnotationEditor:
             # No annotations to save
             return True
         
+        temp_file_path = None
         try:
-            # Ensure original image is RGBA for compositing
-            if self.original_image.mode != 'RGBA':
-                base_image = self.original_image.convert('RGBA')
-            else:
-                base_image = self.original_image.copy()
+            # Create a temporary file for editing
+            temp_suffix = self.image_path.suffix
+            with tempfile.NamedTemporaryFile(suffix=temp_suffix, delete=False) as temp_file:
+                temp_file_path = Path(temp_file.name)
+            
+            # Copy original image to temporary file
+            try:
+                shutil.copy2(str(self.image_path), str(temp_file_path))
+                print(f"Copied original image to temporary file: {temp_file_path}")
+            except Exception as e:
+                print(f"Failed to copy original image to temporary file: {e}")
+                return False
+            
+            # Open the temporary file for processing
+            try:
+                with Image.open(str(temp_file_path)) as temp_image:
+                    # Ensure original image is RGBA for compositing
+                    if temp_image.mode != 'RGBA':
+                        base_image = temp_image.convert('RGBA')
+                    else:
+                        base_image = temp_image.copy()
+            except Exception as e:
+                print(f"Failed to open temporary image file: {e}")
+                return False
             
             # Create transparent overlay for all annotations
             overlay = Image.new('RGBA', base_image.size, (255, 255, 255, 0))
@@ -1155,15 +1179,39 @@ class ImageAnnotationEditor:
             if self.image_path.suffix.lower() in ['.jpg', '.jpeg']:
                 # Convert to RGB for JPEG
                 result = result.convert('RGB')
-            
-            # Save the result
-            result.save(self.image_path)
-            return True
+
+            # Save the final annotated image back to the original path
+            try:
+                annotated_path = self.image_path.with_stem(self.image_path.stem + "_annotated")
+
+                try:
+                    result.save(str(annotated_path))
+                    print(f"Image saved to {annotated_path}")
+                    
+                    # Update path so the callback gets the right file
+                    self.image_path = annotated_path
+                    return True
+                except Exception as e:
+                    print(f"Failed to save image to {annotated_path}: {e}")
+                    return False
+                
+            except Exception as e:
+                print(f"Failed to save image to original path: {e}")
+                return False
             
         except Exception as e:
             import tkinter.messagebox as messagebox
             messagebox.showerror("Save Error", f"Failed to save annotated image: {e}")
             return False
+        
+        finally:
+            # Clean up temporary file
+            if temp_file_path and temp_file_path.exists():
+                try:
+                    temp_file_path.unlink()
+                    print(f"Cleaned up temporary file: {temp_file_path}")
+                except Exception as e:
+                    print(f"Failed to clean up temporary file: {e}")
     
     def _done(self) -> None:
         """Save annotations and close editor."""
