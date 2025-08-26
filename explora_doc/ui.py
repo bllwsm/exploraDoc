@@ -64,7 +64,7 @@ class MainUI:
         self.root.title("ExploraDoc")
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)  # Set minimum window size
-        self.root.maxsize(1400, 1000)  # Set maximum window size
+        self.root.maxsize(1900, 1000)  # Set maximum window size
         
         # Try to set application icon
         try:

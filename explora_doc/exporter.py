@@ -32,8 +32,18 @@ class DocumentExporter:
         
         doc = Document()
         doc.add_heading(test_title, level=1)
+        # Set default font for the document to Arial
+        from docx.oxml.ns import qn
+        from docx.shared import Pt
+        style = doc.styles['Normal']
+        font = style.font
+        font.name = 'Arial'
+        font.size = Pt(11)
+        # For compatibility with Word
+        style.element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
         
         # Process screenshots in the order they appear in the dictionary
+        figure_number = 1
         for path, meta in screenshots.items():
             # Add image
             try:
@@ -43,22 +53,36 @@ class DocumentExporter:
                 caption = meta.caption.get().strip()
                 if caption:
                     caption_paragraph = doc.add_paragraph()
-                    caption_paragraph.add_run(f"Figure: {caption}")
+                    run = caption_paragraph.add_run(f"Figure {figure_number}: {caption}")
                     caption_paragraph.style = 'Caption'  # Use Word's built-in caption style
                     caption_paragraph.alignment = 1  # Center alignment
-                
+                    run.font.name = 'Arial'
+                else:
+                    # If no caption, still add a numbered figure label
+                    caption_paragraph = doc.add_paragraph()
+                    run = caption_paragraph.add_run(f"Figure {figure_number}")
+                    caption_paragraph.style = 'Caption'
+                    caption_paragraph.alignment = 1
+                    run.font.name = 'Arial'
+                figure_number += 1
             except Exception as e:
-                doc.add_paragraph(f"[Image error: {e}]")
+                error_paragraph = doc.add_paragraph(f"[Image error: {e}]")
+                for run in error_paragraph.runs:
+                    run.font.name = 'Arial'
             
             # Add what this image shows
             what_content = meta.what.get().strip()
             if what_content:
-                doc.add_paragraph(what_content)
+                what_paragraph = doc.add_paragraph(what_content)
+                for run in what_paragraph.runs:
+                    run.font.name = 'Arial'
             
             # Add branch label
             branch = meta.branch.get()
             if branch:
-                doc.add_paragraph(f"Branch: {branch}")
+                branch_paragraph = doc.add_paragraph(f"Branch: {branch}")
+                for run in branch_paragraph.runs:
+                    run.font.name = 'Arial'
             
             doc.add_page_break()
         
