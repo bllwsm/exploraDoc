@@ -23,7 +23,8 @@ class MainUI:
         self.root = root
         self.controller = controller
         self.folder_var = tk.StringVar()
-        self.test_title_var = tk.StringVar(value="Testing for AS-")
+        self.test_title_var = tk.StringVar()  # Empty by default, user enters ticket number only
+        self.test_type_var = tk.StringVar()  # No default value as specified
         
         # UI References
         self.feed_frame = None
@@ -84,6 +85,7 @@ class MainUI:
         """Build the main user interface."""
         self._create_test_title_section()
         self._create_toolbar()
+        self._create_testing_charter_section()
         self._create_screenshot_feed()
     
     def _create_test_title_section(self):
@@ -91,23 +93,40 @@ class MainUI:
         title_frame = ctk.CTkFrame(self.root)
         title_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 5))
         
+        # Test type dropdown
+        self.test_type_dropdown = ctk.CTkComboBox(
+            title_frame,
+            variable=self.test_type_var,
+            values=["QA", "Exploratory"],
+            state="readonly",
+            width=100,
+            command=self._on_test_type_change
+        )
+        self.test_type_dropdown.pack(side=tk.LEFT, padx=(10, 5), pady=10)
+        
         ctk.CTkLabel(
             title_frame, 
-            text="Document Title: *",
+            text="Ticket Number: *",
             font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(side=tk.LEFT, padx=(10, 5), pady=10)
+        ).pack(side=tk.LEFT, padx=(0, 5), pady=10)
         
         self.title_entry = ctk.CTkEntry(
             title_frame, 
             textvariable=self.test_title_var, 
-            width=300,
-            placeholder_text="Testing for AS-<branch> (Required)"
+            width=200,
+            placeholder_text="AS-22280 (Required)"
         )
         self.title_entry.pack(side=tk.LEFT, padx=(0, 10), pady=10)
         
         # Bind validation to the entry
         self.test_title_var.trace_add("write", self._validate_title_field)
         self.test_title_var.trace_add("write", self._on_title_change)
+        self.test_title_var.trace_add("write", self._enforce_character_limit)
+    
+    def _on_test_type_change(self, value):
+        """Handle test type dropdown selection and update placeholder text."""
+        # Placeholder text remains consistent since user only enters ticket number
+        self.title_entry.configure(placeholder_text="AS-22280 (Required)")
     
     def _create_toolbar(self):
         """Create the top toolbar with controls."""
@@ -180,6 +199,276 @@ class MainUI:
         # Initialize button states
         self._update_button_states()
     
+    def _create_testing_charter_section(self):
+        """Create the testing charter section with separate dropdown and export toggle."""
+        # Main container
+        self.charter_frame = ctk.CTkFrame(self.root)
+        self.charter_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(2, 5))
+
+        # Header with dropdown button and export toggle
+        header_frame = ctk.CTkFrame(self.charter_frame)
+        header_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        # Dropdown button for UI visibility
+        self.charter_expanded = tk.BooleanVar(value=True)  # Start expanded
+        self.charter_dropdown_btn = ctk.CTkButton(
+            header_frame,
+            text="▼ Testing Charter",
+            width=130,
+            height=24,
+            command=self._toggle_charter_visibility
+        )
+        self.charter_dropdown_btn.pack(side=tk.LEFT, padx=(5, 8))
+
+        # Export inclusion toggle
+        self.charter_export_toggle = ctk.CTkSwitch(
+            header_frame,
+            text="Include in Export",
+            variable=self.controller.testing_charter.enabled,
+            command=self._on_export_toggle_change
+        )
+        self.charter_export_toggle.pack(side=tk.LEFT)
+
+        # Charter content area (initially visible)
+        self.charter_content_frame = ctk.CTkFrame(self.charter_frame)
+        self.charter_content_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+
+        self._create_charter_fields()
+
+    def _create_charter_fields(self):
+        """Create the individual charter fields."""
+        # Objective (*)
+        obj_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="Objective: *",
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        obj_label.pack(anchor="w", padx=8, pady=(5, 1))
+
+        obj_entry = ctk.CTkEntry(
+            self.charter_content_frame,
+            textvariable=self.controller.testing_charter.objective,
+            placeholder_text="Enter test objective...",
+            height=28
+        )
+        obj_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+
+        # What's going to be checked (*) - Interactive bullet points
+        checked_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="What's going to be checked: *",
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        checked_label.pack(anchor="w", padx=8, pady=(2, 1))
+
+        # Container for bullet points
+        self.bullet_container = ctk.CTkFrame(self.charter_content_frame)
+        self.bullet_container.pack(fill=tk.X, padx=8, pady=(0, 5))
+        
+        # List to track bullet point entries
+        self.bullet_entries = []
+        
+        # Entry for adding new bullet points
+        self.new_bullet_frame = ctk.CTkFrame(self.bullet_container)
+        self.new_bullet_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ctk.CTkLabel(
+            self.new_bullet_frame,
+            text="•",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(side=tk.LEFT, padx=(5, 2))
+        
+        self.new_bullet_entry = ctk.CTkEntry(
+            self.new_bullet_frame,
+            placeholder_text="Press Enter to add bullet point...",
+            height=28
+        )
+        self.new_bullet_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.new_bullet_entry.bind("<Return>", self._add_bullet_point)
+        
+        # Initially add the textbox but hide it (for backwards compatibility with data loading)
+        self.checked_textbox = ctk.CTkTextbox(
+            self.charter_content_frame,
+            height=0  # Hidden
+        )
+        # Still bind to StringVar for data persistence
+        self.checked_textbox.bind("<KeyRelease>", self._update_checked_text)
+
+        # Prerequisites
+        prereq_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="Prerequisites:",
+            font=ctk.CTkFont(size=11)
+        )
+        prereq_label.pack(anchor="w", padx=8, pady=(2, 1))
+
+        prereq_entry = ctk.CTkEntry(
+            self.charter_content_frame,
+            textvariable=self.controller.testing_charter.prerequisites,
+            placeholder_text="List any prerequisites...",
+            height=28
+        )
+        prereq_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+
+        # Exclusions
+        excl_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="Exclusions:",
+            font=ctk.CTkFont(size=11)
+        )
+        excl_label.pack(anchor="w", padx=8, pady=(2, 1))
+
+        excl_entry = ctk.CTkEntry(
+            self.charter_content_frame,
+            textvariable=self.controller.testing_charter.exclusions,
+            placeholder_text="List any exclusions...",
+            height=28
+        )
+        excl_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+
+        # Defects
+        defects_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="Defects:",
+            font=ctk.CTkFont(size=11)
+        )
+        defects_label.pack(anchor="w", padx=8, pady=(2, 1))
+
+        defects_entry = ctk.CTkEntry(
+            self.charter_content_frame,
+            textvariable=self.controller.testing_charter.defects,
+            placeholder_text="List known defects...",
+            height=28
+        )
+        defects_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+
+        # Peer Review (single line)
+        review_label = ctk.CTkLabel(
+            self.charter_content_frame,
+            text="Peer Review:",
+            font=ctk.CTkFont(size=11)
+        )
+        review_label.pack(anchor="w", padx=8, pady=(2, 1))
+
+        review_entry = ctk.CTkEntry(
+            self.charter_content_frame,
+            textvariable=self.controller.testing_charter.peer_review,
+            placeholder_text="Peer review status...",
+            height=28
+        )
+        review_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        
+        # Load any existing bullet points from saved data
+        self.root.after(100, self._load_existing_bullet_points)  # Small delay to ensure UI is ready
+
+    def _toggle_charter_visibility(self):
+        """Handle dropdown button click to show/hide charter fields."""
+        if self.charter_expanded.get():
+            # Collapse
+            self.charter_content_frame.pack_forget()
+            self.charter_dropdown_btn.configure(text="▲ Testing Charter")
+            self.charter_expanded.set(False)
+        else:
+            # Expand
+            self.charter_content_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+            self.charter_dropdown_btn.configure(text="▼ Testing Charter")
+            self.charter_expanded.set(True)
+
+    def _on_export_toggle_change(self):
+        """Handle export toggle change - just update validation state."""
+        # The export toggle only affects whether charter is included in export
+        # UI visibility is controlled separately by the dropdown
+        self._update_button_states()
+
+    def _add_bullet_point(self, event=None):
+        """Add a new bullet point when Enter is pressed."""
+        text = self.new_bullet_entry.get().strip()
+        if text:
+            self._create_bullet_point_widget(text)
+            self.new_bullet_entry.delete(0, tk.END)
+            self._update_bullet_text()
+    
+    def _create_bullet_point_widget(self, text):
+        """Create a widget for a single bullet point with edit/delete options."""
+        bullet_frame = ctk.CTkFrame(self.bullet_container)
+        bullet_frame.pack(fill=tk.X, padx=5, pady=2, before=self.new_bullet_frame)
+        
+        # Bullet symbol
+        ctk.CTkLabel(
+            bullet_frame,
+            text="•",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(side=tk.LEFT, padx=(5, 2))
+        
+        # Entry for editing
+        entry = ctk.CTkEntry(
+            bullet_frame,
+            height=28
+        )
+        entry.insert(0, text)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        entry.bind("<KeyRelease>", lambda e: self._update_bullet_text())
+        entry.bind("<Return>", lambda e: entry.master.focus())  # Remove focus on Enter
+        
+        # Delete button
+        delete_btn = ctk.CTkButton(
+            bullet_frame,
+            text="×",
+            width=25,
+            height=25,
+            font=ctk.CTkFont(size=16, weight="bold"),
+            fg_color="red",
+            hover_color="darkred",
+            command=lambda: self._delete_bullet_point(bullet_frame)
+        )
+        delete_btn.pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # Store reference
+        self.bullet_entries.append((bullet_frame, entry))
+    
+    def _delete_bullet_point(self, bullet_frame):
+        """Delete a bullet point."""
+        # Remove from tracking list
+        self.bullet_entries = [(frame, entry) for frame, entry in self.bullet_entries if frame != bullet_frame]
+        # Destroy the widget
+        bullet_frame.destroy()
+        self._update_bullet_text()
+    
+    def _update_bullet_text(self):
+        """Update the underlying StringVar with current bullet points."""
+        bullet_texts = []
+        for frame, entry in self.bullet_entries:
+            text = entry.get().strip()
+            if text:
+                bullet_texts.append(f"- {text}")
+        
+        # Update the StringVar (this maintains compatibility with export)
+        combined_text = '\n'.join(bullet_texts)
+        self.controller.testing_charter.whats_checked.set(combined_text)
+        
+        # Also update the hidden textbox for backwards compatibility
+        self.checked_textbox.delete("1.0", tk.END)
+        self.checked_textbox.insert("1.0", combined_text)
+
+    def _load_existing_bullet_points(self):
+        """Load existing bullet points from saved data."""
+        existing_text = self.controller.testing_charter.whats_checked.get()
+        if existing_text:
+            lines = existing_text.split('\n')
+            for line in lines:
+                line = line.strip()
+                if line.startswith('- ') or line.startswith('* '):
+                    bullet_text = line[2:].strip()
+                    if bullet_text:
+                        self._create_bullet_point_widget(bullet_text)
+                elif line:  # Non-bullet line, add as is
+                    self._create_bullet_point_widget(line)
+
+    def _update_checked_text(self, event=None):
+        """Update the what's checked StringVar from textbox."""
+        content = self.checked_textbox.get("1.0", tk.END).strip()
+        self.controller.testing_charter.whats_checked.set(content)
+    
     def _create_screenshot_feed(self):
         """Create the scrollable screenshot feed area."""
         # Create main container frame
@@ -239,12 +528,33 @@ class MainUI:
             child.destroy()
     
     def _validate_title_field(self, *args):
-        """Validate the test title field."""
-        if self.test_title_var.get().strip():
-            self.title_entry.configure(border_color=("gray", "gray"))
-        else:
+        """Validate the ticket number field."""
+        ticket_number = self.test_title_var.get().strip()
+        
+        if not ticket_number:
             self.title_entry.configure(border_color=("red", "red"))
+            return
+        
+        # Check if ticket number starts with "AS-" (case-insensitive)
+        if not ticket_number.lower().startswith("as-"):
+            self.title_entry.configure(border_color=("red", "red"))
+            return
+
+        # Check if ticket number is no more than 13 characters
+        if len(ticket_number) > 13:
+            self.title_entry.configure(border_color=("red", "red"))
+            return
+        
+        # All validations passed
+        self.title_entry.configure(border_color=("gray", "gray"))
     
+    def _enforce_character_limit(self, *args):
+        """Enforce 13 character limit on ticket number field."""
+        current_value = self.test_title_var.get()
+        if len(current_value) > 13:
+            # Truncate to 13 characters
+            self.test_title_var.set(current_value[:13])
+
     def _on_title_change(self, *args):
         """Handle title field change to trigger auto-save."""
         # Trigger auto-save with a small delay to avoid too frequent saves
@@ -255,12 +565,24 @@ class MainUI:
         """Validate all required fields in the form."""
         errors = []
         
-        # Validate test title
-        if not self.test_title_var.get().strip():
-            errors.append("Test Title is required")
+        # Validate ticket number
+        ticket_number = self.test_title_var.get().strip()
+        if not ticket_number:
+            errors.append("Ticket Number is required")
+            self.title_entry.configure(border_color=("red", "red"))
+        elif not ticket_number.lower().startswith("as-"):
+            errors.append("Ticket Number must start with 'AS-'")
+            self.title_entry.configure(border_color=("red", "red"))
+        elif len(ticket_number) > 13:
+            errors.append("Ticket Number must be no more than 13 characters")
             self.title_entry.configure(border_color=("red", "red"))
         else:
             self.title_entry.configure(border_color=("gray", "gray"))
+        
+        # Validate testing charter if enabled
+        if self.controller.testing_charter.enabled.get():
+            charter_errors = self._validate_testing_charter()
+            errors.extend(charter_errors)
         
         # Validate screenshot entries
         for screenshot_meta in self.controller.screenshots.values():
@@ -282,6 +604,20 @@ class MainUI:
             errors.append(f"'What this image shows' is required for screenshot: {meta.path.name}")
         
         # Branch is already required by default value and dropdown, so no need to validate
+        
+        return errors
+    
+    def _validate_testing_charter(self):
+        """Validate testing charter fields when enabled."""
+        errors = []
+        charter = self.controller.testing_charter
+        
+        # Validate required fields
+        if not charter.objective.get().strip():
+            errors.append("Testing Charter Objective is required")
+        
+        if not charter.whats_checked.get().strip():
+            errors.append("Testing Charter 'What's going to be checked' is required")
         
         return errors
 
@@ -375,22 +711,7 @@ class ScreenshotEntryUI:
         self.meta.what.trace_add("write", self._validate_what_field)
         self.meta.what.trace_add("write", self._on_field_change)
         
-        # Branch selection
-        ctk.CTkLabel(
-            fields_frame, 
-            text="Branch:",
-            font=ctk.CTkFont(size=12, weight="bold")
-        ).pack(anchor="w", padx=10, pady=(0, 5))
-        
-        branch_dropdown = ctk.CTkComboBox(
-            fields_frame,
-            variable=self.meta.branch,
-            values=["dev", "master"],
-            state="readonly",
-            width=120,
-            command=self._on_branch_change
-        )
-        branch_dropdown.pack(anchor="w", padx=10, pady=(0, 10))
+        # Branch selection removed as per requirements
     
     def _create_action_buttons(self, row: ctk.CTkFrame):
         """Create action buttons (delete, etc.) on the right side."""

@@ -11,7 +11,18 @@ class ScreenshotMeta:
     """Metadata and UI references for a screenshot entry."""
     path: Path
     what: tk.StringVar = field(default_factory=tk.StringVar)
-    branch: tk.StringVar = field(default_factory=lambda: tk.StringVar(value="dev"))
     caption: tk.StringVar = field(default_factory=tk.StringVar)
     # UI widget references
     entry_frame: ctk.CTkFrame = None  # will be set after widget creation
+
+
+@dataclass
+class TestingCharter:
+    """Testing charter data model."""
+    objective: tk.StringVar = field(default_factory=tk.StringVar)
+    whats_checked: tk.StringVar = field(default_factory=tk.StringVar)  # Bullet points
+    prerequisites: tk.StringVar = field(default_factory=tk.StringVar)
+    exclusions: tk.StringVar = field(default_factory=tk.StringVar)
+    defects: tk.StringVar = field(default_factory=tk.StringVar)
+    peer_review: tk.StringVar = field(default_factory=tk.StringVar)
+    enabled: tk.BooleanVar = field(default_factory=lambda: tk.BooleanVar(value=False))
