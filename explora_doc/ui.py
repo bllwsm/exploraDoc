@@ -108,7 +108,7 @@ class MainUI:
             variable=self.test_type_var,
             values=["QA", "Exploratory"],
             state="readonly",
-            width=100,
+            width=110,
             command=self._on_test_type_change
         )
         self.test_type_dropdown.pack(side=tk.LEFT, padx=(0, 10), pady=10)
@@ -122,7 +122,7 @@ class MainUI:
         self.title_entry = ctk.CTkEntry(
             title_frame, 
             textvariable=self.test_title_var, 
-            width=200,
+            width=120,
             placeholder_text="AS-22280 (Required)"
         )
         self.title_entry.pack(side=tk.LEFT, padx=(0, 10), pady=10)
