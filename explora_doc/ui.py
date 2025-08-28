@@ -14,6 +14,8 @@ from .assets import get_icon_path, get_image_path
 
 
 THUMBNAIL_SIZE = (180, 120)
+# Fixed height for the Testing Charter scrollable content area
+CHARTER_CONTENT_HEIGHT = 280
 
 
 class MainUI:
@@ -244,8 +246,11 @@ class MainUI:
         )
         self.charter_export_toggle.pack(side=tk.LEFT)
 
-        # Charter content area (initially visible)
-        self.charter_content_frame = ctk.CTkFrame(self.charter_frame)
+        # Charter content area (initially visible) - make it scrollable and fixed height
+        self.charter_content_frame = ctk.CTkScrollableFrame(
+            self.charter_frame,
+            height=CHARTER_CONTENT_HEIGHT
+        )
         self.charter_content_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
 
         self._create_charter_fields()
