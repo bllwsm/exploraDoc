@@ -93,6 +93,13 @@ class MainUI:
         title_frame = ctk.CTkFrame(self.root)
         title_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 5))
         
+        # Test type label + dropdown (required)
+        ctk.CTkLabel(
+            title_frame,
+            text="Test Type: *",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(side=tk.LEFT, padx=(10, 5), pady=10)
+
         # Test type dropdown
         self.test_type_dropdown = ctk.CTkComboBox(
             title_frame,
@@ -102,7 +109,7 @@ class MainUI:
             width=100,
             command=self._on_test_type_change
         )
-        self.test_type_dropdown.pack(side=tk.LEFT, padx=(10, 5), pady=10)
+        self.test_type_dropdown.pack(side=tk.LEFT, padx=(0, 10), pady=10)
         
         ctk.CTkLabel(
             title_frame, 
@@ -118,15 +125,23 @@ class MainUI:
         )
         self.title_entry.pack(side=tk.LEFT, padx=(0, 10), pady=10)
         
-        # Bind validation to the entry
+    # Bind validation to the entry
         self.test_title_var.trace_add("write", self._validate_title_field)
         self.test_title_var.trace_add("write", self._on_title_change)
         self.test_title_var.trace_add("write", self._enforce_character_limit)
+        
+    # Bind validation to test type selection and set initial state
+        self.test_type_var.trace_add("write", self._validate_test_type_field)
+        self._validate_test_type_field()
     
     def _on_test_type_change(self, value):
         """Handle test type dropdown selection and update placeholder text."""
         # Placeholder text remains consistent since user only enters ticket number
         self.title_entry.configure(placeholder_text="AS-22280 (Required)")
+        # Validate selection and trigger autosave
+        self._validate_test_type_field()
+        if hasattr(self.controller, '_save_session_data'):
+            self.controller.root.after(500, self.controller._save_session_data)
     
     def _create_toolbar(self):
         """Create the top toolbar with controls."""
@@ -245,13 +260,19 @@ class MainUI:
         )
         obj_label.pack(anchor="w", padx=8, pady=(5, 1))
 
-        obj_entry = ctk.CTkEntry(
+        # Multiline objective textbox
+        self.objective_text = ctk.CTkTextbox(
             self.charter_content_frame,
-            textvariable=self.controller.testing_charter.objective,
-            placeholder_text="Enter test objective...",
-            height=28
+            height=70,
+            wrap=tk.WORD
         )
-        obj_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.objective_text.pack(fill=tk.X, padx=8, pady=(0, 5))
+        # Load existing value and keep StringVar in sync
+        self.objective_text.insert("1.0", self.controller.testing_charter.objective.get())
+        self.objective_text.bind(
+            "<KeyRelease>",
+            lambda e: self._update_charter_var_from_textbox(self.objective_text, self.controller.testing_charter.objective)
+        )
 
         # What's going to be checked (*) - Interactive bullet points
         checked_label = ctk.CTkLabel(
@@ -302,13 +323,17 @@ class MainUI:
         )
         prereq_label.pack(anchor="w", padx=8, pady=(2, 1))
 
-        prereq_entry = ctk.CTkEntry(
+        self.prereq_text = ctk.CTkTextbox(
             self.charter_content_frame,
-            textvariable=self.controller.testing_charter.prerequisites,
-            placeholder_text="List any prerequisites...",
-            height=28
+            height=60,
+            wrap=tk.WORD
         )
-        prereq_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.prereq_text.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.prereq_text.insert("1.0", self.controller.testing_charter.prerequisites.get())
+        self.prereq_text.bind(
+            "<KeyRelease>",
+            lambda e: self._update_charter_var_from_textbox(self.prereq_text, self.controller.testing_charter.prerequisites)
+        )
 
         # Exclusions
         excl_label = ctk.CTkLabel(
@@ -318,13 +343,17 @@ class MainUI:
         )
         excl_label.pack(anchor="w", padx=8, pady=(2, 1))
 
-        excl_entry = ctk.CTkEntry(
+        self.excl_text = ctk.CTkTextbox(
             self.charter_content_frame,
-            textvariable=self.controller.testing_charter.exclusions,
-            placeholder_text="List any exclusions...",
-            height=28
+            height=60,
+            wrap=tk.WORD
         )
-        excl_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.excl_text.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.excl_text.insert("1.0", self.controller.testing_charter.exclusions.get())
+        self.excl_text.bind(
+            "<KeyRelease>",
+            lambda e: self._update_charter_var_from_textbox(self.excl_text, self.controller.testing_charter.exclusions)
+        )
 
         # Defects
         defects_label = ctk.CTkLabel(
@@ -334,13 +363,17 @@ class MainUI:
         )
         defects_label.pack(anchor="w", padx=8, pady=(2, 1))
 
-        defects_entry = ctk.CTkEntry(
+        self.defects_text = ctk.CTkTextbox(
             self.charter_content_frame,
-            textvariable=self.controller.testing_charter.defects,
-            placeholder_text="List known defects...",
-            height=28
+            height=60,
+            wrap=tk.WORD
         )
-        defects_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.defects_text.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.defects_text.insert("1.0", self.controller.testing_charter.defects.get())
+        self.defects_text.bind(
+            "<KeyRelease>",
+            lambda e: self._update_charter_var_from_textbox(self.defects_text, self.controller.testing_charter.defects)
+        )
 
         # Peer Review (single line)
         review_label = ctk.CTkLabel(
@@ -350,13 +383,17 @@ class MainUI:
         )
         review_label.pack(anchor="w", padx=8, pady=(2, 1))
 
-        review_entry = ctk.CTkEntry(
+        self.review_text = ctk.CTkTextbox(
             self.charter_content_frame,
-            textvariable=self.controller.testing_charter.peer_review,
-            placeholder_text="Peer review status...",
-            height=28
+            height=60,
+            wrap=tk.WORD
         )
-        review_entry.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.review_text.pack(fill=tk.X, padx=8, pady=(0, 5))
+        self.review_text.insert("1.0", self.controller.testing_charter.peer_review.get())
+        self.review_text.bind(
+            "<KeyRelease>",
+            lambda e: self._update_charter_var_from_textbox(self.review_text, self.controller.testing_charter.peer_review)
+        )
         
         # Load any existing bullet points from saved data
         self.root.after(100, self._load_existing_bullet_points)  # Small delay to ensure UI is ready
@@ -469,6 +506,48 @@ class MainUI:
         content = self.checked_textbox.get("1.0", tk.END).strip()
         self.controller.testing_charter.whats_checked.set(content)
     
+    def _update_charter_var_from_textbox(self, textbox: ctk.CTkTextbox, var: tk.StringVar):
+        """Keep a StringVar in sync with a CTkTextbox's content."""
+        try:
+            text = textbox.get("1.0", tk.END).rstrip()
+            var.set(text)
+        except Exception:
+            pass
+
+    def refresh_charter_from_model(self):
+        """Refresh charter UI fields from the controller's TestingCharter model."""
+        charter = self.controller.testing_charter
+        # Objective
+        if hasattr(self, 'objective_text'):
+            self.objective_text.delete("1.0", tk.END)
+            self.objective_text.insert("1.0", charter.objective.get())
+        # Prerequisites
+        if hasattr(self, 'prereq_text'):
+            self.prereq_text.delete("1.0", tk.END)
+            self.prereq_text.insert("1.0", charter.prerequisites.get())
+        # Exclusions
+        if hasattr(self, 'excl_text'):
+            self.excl_text.delete("1.0", tk.END)
+            self.excl_text.insert("1.0", charter.exclusions.get())
+        # Defects
+        if hasattr(self, 'defects_text'):
+            self.defects_text.delete("1.0", tk.END)
+            self.defects_text.insert("1.0", charter.defects.get())
+        # Peer Review
+        if hasattr(self, 'review_text'):
+            self.review_text.delete("1.0", tk.END)
+            self.review_text.insert("1.0", charter.peer_review.get())
+        # Bullets: clear and reload
+        if hasattr(self, 'bullet_entries'):
+            for frame, _ in list(self.bullet_entries):
+                try:
+                    frame.destroy()
+                except Exception:
+                    pass
+            self.bullet_entries = []
+        # Rebuild from whats_checked
+        self._load_existing_bullet_points()
+    
     def _create_screenshot_feed(self):
         """Create the scrollable screenshot feed area."""
         # Create main container frame
@@ -578,6 +657,17 @@ class MainUI:
             self.title_entry.configure(border_color=("red", "red"))
         else:
             self.title_entry.configure(border_color=("gray", "gray"))
+
+        # Validate test type selection
+        test_type = self.test_type_var.get().strip()
+        if not test_type:
+            errors.append("Test Type is required")
+            self.test_type_dropdown.configure(border_color=("red", "red"))
+        elif test_type not in ("QA", "Exploratory"):
+            errors.append("Test Type must be 'QA' or 'Exploratory'")
+            self.test_type_dropdown.configure(border_color=("red", "red"))
+        else:
+            self.test_type_dropdown.configure(border_color=("gray", "gray"))
         
         # Validate testing charter if enabled
         if self.controller.testing_charter.enabled.get():
@@ -590,6 +680,14 @@ class MainUI:
             errors.extend(screenshot_errors)
         
         return errors
+
+    def _validate_test_type_field(self, *args):
+        """Validate the test type dropdown selection."""
+        value = (self.test_type_var.get() or "").strip()
+        if value in ("QA", "Exploratory"):
+            self.test_type_dropdown.configure(border_color=("gray", "gray"))
+        else:
+            self.test_type_dropdown.configure(border_color=("red", "red"))
     
     def _validate_screenshot_entry(self, meta):
         """Validate a single screenshot entry."""

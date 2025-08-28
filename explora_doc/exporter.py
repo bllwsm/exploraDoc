@@ -48,12 +48,23 @@ class DocumentExporter:
             # Objective
             objective = testing_charter.objective.get().strip()
             if objective:
-                doc.add_paragraph(f"Objective: {objective}")
+                # Bold heading on its own line
+                p = doc.add_paragraph()
+                run = p.add_run("Objective")
+                run.bold = True
+                # Content lines below
+                for line in objective.split('\n'):
+                    line = line.strip()
+                    if line:
+                        doc.add_paragraph(line)
 
             # What's going to be checked (as bullet points)
             checked = testing_charter.whats_checked.get().strip()
             if checked:
-                doc.add_paragraph("What's going to be checked:")
+                # Bold heading on its own line
+                p = doc.add_paragraph()
+                run = p.add_run("What's going to be checked")
+                run.bold = True
                 for line in checked.split('\n'):
                     line = line.strip()
                     if line.startswith('- ') or line.startswith('* '):
@@ -71,7 +82,15 @@ class DocumentExporter:
 
             for field_name, field_value in fields:
                 if field_value.strip():
-                    doc.add_paragraph(f"{field_name}: {field_value.strip()}")
+                    # Bold heading on its own line
+                    p = doc.add_paragraph()
+                    run = p.add_run(field_name)
+                    run.bold = True
+                    # Content lines below
+                    for line in field_value.split('\n'):
+                        line = line.strip()
+                        if line:
+                            doc.add_paragraph(line)
 
             # Add page break before evidence
             doc.add_page_break()

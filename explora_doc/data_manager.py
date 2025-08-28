@@ -5,7 +5,7 @@ import tkinter as tk
 from pathlib import Path
 from typing import Dict, Any
 from dataclasses import asdict
-from .models import ScreenshotMeta
+from .models import ScreenshotMeta, TestingCharter
 
 
 class DataManager:
@@ -23,14 +23,30 @@ class DataManager:
         # Ensure the directory exists
         self.data_file.parent.mkdir(parents=True, exist_ok=True)
     
-    def save_session(self, screenshots: Dict[Path, ScreenshotMeta], test_title: str = "") -> None:
+    def save_session(self, screenshots: Dict[Path, ScreenshotMeta], test_title: str = "", 
+                     testing_charter: TestingCharter | None = None,
+                     test_type: str | None = None) -> None:
         """Save the current session data to file."""
         try:
             # Convert screenshots data to serializable format
             serializable_data = {
                 "test_title": test_title,
+                "test_type": test_type or "",
+                "testing_charter": {},
                 "screenshots": []
             }
+            
+            # Serialize testing charter if provided
+            if testing_charter is not None:
+                serializable_data["testing_charter"] = {
+                    "enabled": bool(testing_charter.enabled.get()),
+                    "objective": testing_charter.objective.get(),
+                    "whats_checked": testing_charter.whats_checked.get(),
+                    "prerequisites": testing_charter.prerequisites.get(),
+                    "exclusions": testing_charter.exclusions.get(),
+                    "defects": testing_charter.defects.get(),
+                    "peer_review": testing_charter.peer_review.get(),
+                }
             
             for path, meta in screenshots.items():
                 screenshot_data = {
@@ -47,19 +63,23 @@ class DataManager:
         except Exception as e:
             print(f"Error saving session data: {e}")
     
-    def load_session(self) -> tuple[Dict[Path, ScreenshotMeta], str]:
+    def load_session(self) -> tuple[Dict[Path, ScreenshotMeta], str, dict, str]:
         """Load session data from file."""
         screenshots = {}
         test_title = ""
+        charter_data: dict = {}
+        test_type: str = ""
         
         try:
             if not self.data_file.exists():
-                return screenshots, test_title
+                return screenshots, test_title, charter_data, test_type
             
             with open(self.data_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             test_title = data.get("test_title", "")
+            test_type = data.get("test_type", "")
+            charter_data = data.get("testing_charter", {}) or {}
             
             for screenshot_data in data.get("screenshots", []):
                 path = Path(screenshot_data["path"])
@@ -74,7 +94,7 @@ class DataManager:
         except Exception as e:
             print(f"Error loading session data: {e}")
         
-        return screenshots, test_title
+        return screenshots, test_title, charter_data, test_type
     
     def clear_session_file(self) -> None:
         """Remove the session data file."""

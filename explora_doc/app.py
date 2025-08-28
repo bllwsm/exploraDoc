@@ -328,11 +328,27 @@ class ExploraDocApp:
     def _load_session_data(self):
         """Load saved session data if it exists."""
         try:
-            screenshots, test_title = self.data_manager.load_session()
+            screenshots, test_title, charter_data, saved_test_type = self.data_manager.load_session()
             
             # Set the test title
             if test_title:
                 self.ui.test_title_var.set(test_title)
+            # Set test type if saved
+            if saved_test_type:
+                self.ui.test_type_var.set(saved_test_type)
+            
+            # Restore testing charter
+            if charter_data:
+                try:
+                    self.testing_charter.enabled.set(bool(charter_data.get("enabled", False)))
+                    self.testing_charter.objective.set(charter_data.get("objective", ""))
+                    self.testing_charter.whats_checked.set(charter_data.get("whats_checked", ""))
+                    self.testing_charter.prerequisites.set(charter_data.get("prerequisites", ""))
+                    self.testing_charter.exclusions.set(charter_data.get("exclusions", ""))
+                    self.testing_charter.defects.set(charter_data.get("defects", ""))
+                    self.testing_charter.peer_review.set(charter_data.get("peer_review", ""))
+                except Exception as e:
+                    print(f"Error restoring charter data: {e}")
             
             # Load screenshots
             for path, meta in screenshots.items():
@@ -353,6 +369,11 @@ class ExploraDocApp:
             
             # Update button states
             self.ui._update_button_states()
+            # Ensure UI reflects loaded charter content
+            try:
+                self.ui.refresh_charter_from_model()
+            except Exception as e:
+                print(f"Error refreshing charter UI: {e}")
             
         except Exception as e:
             print(f"Error loading session data: {e}")
@@ -361,7 +382,13 @@ class ExploraDocApp:
         """Save current session data."""
         try:
             test_title = self.ui.test_title_var.get()
-            self.data_manager.save_session(self.screenshots, test_title)
+            test_type = self.ui.test_type_var.get()
+            self.data_manager.save_session(
+                self.screenshots,
+                test_title,
+                testing_charter=self.testing_charter,
+                test_type=test_type
+            )
         except Exception as e:
             print(f"Error saving session data: {e}")
     
