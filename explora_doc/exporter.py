@@ -6,14 +6,15 @@ from docx import Document
 from docx.shared import Inches
 import os
 
-from .models import ScreenshotMeta
+from .models import ScreenshotMeta, TestingCharter
 
 
 class DocumentExporter:
     """Handles exporting screenshots and annotations to Word documents."""
     
     @staticmethod
-    def export_to_word(screenshots: Dict[Path, ScreenshotMeta], test_title: str = "Exploratory Test Session") -> Path:
+    def export_to_word(screenshots: Dict[Path, ScreenshotMeta], test_title: str = "Exploratory Test Session",
+                       testing_charter: TestingCharter = None, test_type: str = "Exploratory") -> Path:
         """
         Export screenshots and annotations to a Word document.
         
@@ -31,7 +32,52 @@ class DocumentExporter:
             raise ValueError("No screenshots to export")
         
         doc = Document()
-        doc.add_heading(test_title, level=1)
+        
+        # Create the combined title with test type and ticket number
+        if test_type.lower() == "qa":
+            full_title = f"QA Testing for {test_title}"
+        else:  # Exploratory
+            full_title = f"Exploratory Testing for {test_title}"
+            
+        doc.add_heading(full_title, level=1)
+
+        # Add testing charter if enabled
+        if testing_charter and testing_charter.enabled.get():
+            doc.add_heading("Testing Charter", level=2)
+
+            # Objective
+            objective = testing_charter.objective.get().strip()
+            if objective:
+                doc.add_paragraph(f"Objective: {objective}")
+
+            # What's going to be checked (as bullet points)
+            checked = testing_charter.whats_checked.get().strip()
+            if checked:
+                doc.add_paragraph("What's going to be checked:")
+                for line in checked.split('\n'):
+                    line = line.strip()
+                    if line.startswith('- ') or line.startswith('* '):
+                        line = line[2:]
+                    if line:
+                        doc.add_paragraph(line, style='List Bullet')
+
+            # Other fields
+            fields = [
+                ("Prerequisites", testing_charter.prerequisites.get()),
+                ("Exclusions", testing_charter.exclusions.get()),
+                ("Defects", testing_charter.defects.get()),
+                ("Peer Review", testing_charter.peer_review.get())
+            ]
+
+            for field_name, field_value in fields:
+                if field_value.strip():
+                    doc.add_paragraph(f"{field_name}: {field_value.strip()}")
+
+            # Add page break before evidence
+            doc.add_page_break()
+
+        # Add evidence section header
+        doc.add_heading("Evidence", level=2)
         
         # Process screenshots in the order they appear in the dictionary
         for path, meta in screenshots.items():
@@ -55,16 +101,13 @@ class DocumentExporter:
             if what_content:
                 doc.add_paragraph(what_content)
             
-            # Add branch label
-            branch = meta.branch.get()
-            if branch:
-                doc.add_paragraph(f"Branch: {branch}")
+            # Branch information removed as per requirements
             
             doc.add_page_break()
         
-        # Generate filename based on test title
+        # Generate filename based on combined title (same as document title)
         # Clean the title to make it filesystem-safe
-        safe_title = "".join(c for c in test_title if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_title = "".join(c for c in full_title if c.isalnum() or c in (' ', '-', '_')).strip()
         safe_title = safe_title.replace(' ', '_')
         if not safe_title:
             safe_title = "ExploraDoc"

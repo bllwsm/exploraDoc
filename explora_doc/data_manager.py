@@ -36,7 +36,6 @@ class DataManager:
                 screenshot_data = {
                     "path": str(path),
                     "what": meta.what.get(),
-                    "branch": meta.branch.get(),
                     "caption": meta.caption.get()
                 }
                 serializable_data["screenshots"].append(screenshot_data)
@@ -69,7 +68,6 @@ class DataManager:
                 if path.exists():
                     meta = ScreenshotMeta(path=path)
                     meta.what.set(screenshot_data.get("what", ""))
-                    meta.branch.set(screenshot_data.get("branch", "dev"))
                     meta.caption.set(screenshot_data.get("caption", ""))
                     screenshots[path] = meta
                     

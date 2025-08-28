@@ -8,7 +8,7 @@ from typing import Dict
 from tkinter import messagebox, filedialog
 from PIL import Image
 
-from .models import ScreenshotMeta
+from .models import ScreenshotMeta, TestingCharter
 from .file_monitor import FileMonitor, get_default_screenshot_folder
 from .exporter import DocumentExporter
 from .ui import MainUI, ScreenshotEntryUI, ImageViewerDialog, ExportSuccessDialog
@@ -29,6 +29,7 @@ class ExploraDocApp:
         self.screenshots: Dict[Path, ScreenshotMeta] = {}
         self.selected_folder: Path = get_default_screenshot_folder()
         self.event_queue: queue.Queue = queue.Queue()
+        self.testing_charter = TestingCharter()  # Initialize testing charter
         
         # Create UI after screenshots is initialized
         self.ui = MainUI(root, self)
@@ -115,7 +116,10 @@ class ExploraDocApp:
 
         try:
             test_title = self.ui.test_title_var.get().strip() or "Exploratory Test Session"
-            file_path = DocumentExporter.export_to_word(self.screenshots, test_title)
+            test_type = self.ui.test_type_var.get() or "Exploratory"
+            file_path = DocumentExporter.export_to_word(
+                self.screenshots, test_title, self.testing_charter, test_type
+            )
             ExportSuccessDialog.show_success(self.root, file_path)
         except Exception as e:
             messagebox.showerror("Export Failed", str(e))
