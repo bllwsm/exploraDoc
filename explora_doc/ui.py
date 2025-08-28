@@ -399,9 +399,6 @@ class MainUI:
             "<KeyRelease>",
             lambda e: self._update_charter_var_from_textbox(self.review_text, self.controller.testing_charter.peer_review)
         )
-        
-        # Load any existing bullet points from saved data
-        self.root.after(100, self._load_existing_bullet_points)  # Small delay to ensure UI is ready
 
     def _toggle_charter_visibility(self):
         """Handle dropdown button click to show/hide charter fields."""
