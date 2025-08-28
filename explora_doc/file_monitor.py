@@ -69,6 +69,16 @@ class ScreenshotHandler(FileSystemEventHandler):
         file_path = Path(event.src_path)
         if file_path.suffix.lower() in SUPPORTED_EXTS:
             self.callback(file_path)
+    
+    def on_moved(self, event):
+        """Handle file move events (catches atomic renames)."""
+        if event.is_directory:
+            return
+        
+        # Check if the destination file is a supported image
+        dest_path = Path(event.dest_path)
+        if dest_path.suffix.lower() in SUPPORTED_EXTS:
+            self.callback(dest_path)
 
 
 class FileMonitor:

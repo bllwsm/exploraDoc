@@ -1,6 +1,7 @@
 """ExploraDoc - A lightweight tool for exploratory testing documentation."""
 
 import queue
+import time
 import tkinter as tk
 import customtkinter as ctk
 from pathlib import Path
@@ -189,14 +190,14 @@ class ExploraDocApp:
             self.root.after(400, self._poll_queue)
     
     def _add_screenshot(self, file_path: Path):
-        """Add a new screenshot to the UI."""
+        """Add a new screenshot to the UI with retry logic for file availability."""
         if file_path in self.screenshots:
             return
         
-        try:
-            image = Image.open(file_path)
-        except Exception as e:
-            return
+        # Try to open the image with retry logic for OneDrive/file locks
+        image = self._try_open_image_with_retry(file_path)
+        if image is None:
+            return  # Failed to open after retries
         
         meta = ScreenshotMeta(path=file_path)
         ScreenshotEntryUI(
@@ -213,6 +214,31 @@ class ExploraDocApp:
         
         # Update button states when screenshot is added
         self.ui._update_button_states()
+    
+    def _try_open_image_with_retry(self, file_path: Path, max_attempts: int = 10) -> Image.Image | None:
+        """Try to open an image file with retry logic for OneDrive/file locks.
+        
+        Args:
+            file_path: Path to the image file
+            max_attempts: Maximum number of retry attempts
+            
+        Returns:
+            PIL Image object if successful, None if all attempts failed
+        """
+        for attempt in range(max_attempts):
+            try:
+                return Image.open(file_path)
+            except (OSError, PermissionError, FileNotFoundError) as e:
+                if attempt == max_attempts - 1:
+                    # Last attempt failed
+                    print(f"Failed to open {file_path} after {max_attempts} attempts: {e}")
+                    return None
+                
+                # Wait before retrying, with increasing delay
+                wait_time = 0.2 + (attempt * 0.2)  # 0.2s, 0.4s, 0.6s, etc.
+                time.sleep(wait_time)
+                
+        return None
     
     def _show_full_image(self, file_path: Path):
         """Open the image annotation editor."""
