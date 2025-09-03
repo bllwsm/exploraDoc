@@ -1,0 +1,3 @@
+- the edit image window is not expandable so action buttons dont show
+- have the ability to export image only
+- testing charter should auto delete too when clicking clear session
