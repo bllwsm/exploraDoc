@@ -1,13 +1,12 @@
 """UI components for the ExploraDoc application."""
 
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 import customtkinter as ctk
 from pathlib import Path
 from PIL import Image
 import os
 import subprocess
-import webbrowser
 
 from .models import ScreenshotMeta
 from .assets import get_icon_path, get_image_path
